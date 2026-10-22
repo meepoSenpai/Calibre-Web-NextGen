@@ -3363,6 +3363,22 @@ def do_download_file(book, book_format, client, data, headers, cover_user_id=Non
                 log.error_or_exception(f"Failed to kepubify metadata for book {book.id}: {e}")
                 filename = os.path.join(config.get_book_path(), book.path)
                 download_name = book_name
+        elif book_format.lower() == "cbz" and config.config_embed_metadata:
+            # calibredb export only writes ComicBookInfo into the zip comment,
+            # which comic readers ignore; merge into ComicInfo.xml instead.
+            # None means the archive already matches: serve it as is.
+            staged = None
+            try:
+                from .services.comicinfo_embed import embed_cbz_metadata
+                staged = embed_cbz_metadata(
+                    book, os.path.join(filename, book_name + "." + book_format), book_format)
+            except Exception as e:
+                log.error_or_exception(f"Failed to embed ComicInfo.xml for book {book.id}: {e}")
+            if staged:
+                filename, download_name = staged
+                metadata_was_embedded = True
+            else:
+                download_name = book_name
         elif book_format != "kepub" and config.config_binariesdir and config.config_embed_metadata:
             filename, download_name = do_calibre_export(book.id, book_format)
             metadata_was_embedded = True
