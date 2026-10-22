@@ -66,7 +66,10 @@ jobs:
 
       - name: Lowercase image name
         id: img
-        run: echo "name=$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "name=$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+          # This repository's own mirror; ensure-python-mirror.sh fills it.
+          echo "mirror=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/pbs-cache" >> "$GITHUB_OUTPUT"
 
       - name: Derive version
         id: ver
@@ -132,6 +135,7 @@ jobs:
             BUILD_DATE=${{ github.event.release.created_at || github.event.repository.updated_at }}
             VERSION=${{ steps.ver.outputs.tag }}
             PBS_SOURCE=ghcr
+            PBS_MIRROR=${{ steps.img.outputs.mirror }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}

@@ -201,7 +201,10 @@ jobs:
 
       # --- 1. Calculate Variables ---
       - name: Set repo name to lowercase
-        run: echo "LOWER_REPO_NAME=$(echo ${{ github.event.repository.name }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+        run: |
+          echo "LOWER_REPO_NAME=$(echo ${{ github.event.repository.name }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+          # Registry names must be lowercase; a GitHub owner may not be.
+          echo "LOWER_OWNER=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Determine Docker Image Tag
         id: tag
@@ -265,7 +268,7 @@ jobs:
 
       - name: Compose docker outputs (GHCR always; DockerHub when opted-in)
         run: |
-          GHCR_LINE="type=image,name=ghcr.io/${{ github.repository_owner }}/${{ env.LOWER_REPO_NAME }},push-by-digest=true,name-canonical=true,push=true"
+          GHCR_LINE="type=image,name=ghcr.io/${{ env.LOWER_OWNER }}/${{ env.LOWER_REPO_NAME }},push-by-digest=true,name-canonical=true,push=true"
           if [ "${{ vars.DOCKERHUB_PUSH_ENABLED }}" = "true" ] && [ "${{ github.event_name }}" != "pull_request" ]; then
             DH_LINE="type=image,name=${{ secrets.DOCKERHUB_USERNAME }}/calibre-web-automated,push-by-digest=true,name-canonical=true,push=true"
             printf 'DOCKER_BUILD_OUTPUTS<<EOF\n%s\n%s\nEOF\n' "$DH_LINE" "$GHCR_LINE" >> "$GITHUB_ENV"
@@ -297,6 +300,7 @@ jobs:
             BUILD_DATE=${{ github.event.repository.updated_at }}
             VERSION=DEV_BUILD-${{ env.IMAGE_TAG }}-${{ vars.CURRENT_DEV_BUILD_NUM }}
             PBS_SOURCE=${{ github.event.pull_request.head.repo.fork == true && 'upstream' || 'ghcr' }}
+            PBS_MIRROR=ghcr.io/${{ env.LOWER_OWNER }}/pbs-cache
 
       # --- 4. Export Digest for Merge Job ---
       - name: Export digest
@@ -354,7 +358,10 @@ jobs:
 
       # --- 1. Calculate Variables ---
       - name: Set repo name to lowercase
-        run: echo "LOWER_REPO_NAME=$(echo ${{ github.event.repository.name }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+        run: |
+          echo "LOWER_REPO_NAME=$(echo ${{ github.event.repository.name }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+          # Registry names must be lowercase; a GitHub owner may not be.
+          echo "LOWER_OWNER=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Determine Docker Image Tag
         id: tag
@@ -418,7 +425,7 @@ jobs:
 
       - name: Compose docker outputs (GHCR always; DockerHub when opted-in)
         run: |
-          GHCR_LINE="type=image,name=ghcr.io/${{ github.repository_owner }}/${{ env.LOWER_REPO_NAME }},push-by-digest=true,name-canonical=true,push=true"
+          GHCR_LINE="type=image,name=ghcr.io/${{ env.LOWER_OWNER }}/${{ env.LOWER_REPO_NAME }},push-by-digest=true,name-canonical=true,push=true"
           if [ "${{ vars.DOCKERHUB_PUSH_ENABLED }}" = "true" ] && [ "${{ github.event_name }}" != "pull_request" ]; then
             DH_LINE="type=image,name=${{ secrets.DOCKERHUB_USERNAME }}/calibre-web-automated,push-by-digest=true,name-canonical=true,push=true"
             printf 'DOCKER_BUILD_OUTPUTS<<EOF\n%s\n%s\nEOF\n' "$DH_LINE" "$GHCR_LINE" >> "$GITHUB_ENV"
@@ -451,6 +458,7 @@ jobs:
             BUILD_DATE=${{ github.event.repository.updated_at }}
             VERSION=DEV_BUILD-${{ env.IMAGE_TAG }}-${{ vars.CURRENT_DEV_BUILD_NUM }}
             PBS_SOURCE=${{ github.event.pull_request.head.repo.fork == true && 'upstream' || 'ghcr' }}
+            PBS_MIRROR=ghcr.io/${{ env.LOWER_OWNER }}/pbs-cache
 
       # --- 4. Rotate Cache (Prevent Infinite Growth) ---
       - name: Move cache
@@ -518,7 +526,10 @@ jobs:
           ref: ${{ env.BUILD_REF }}
 
       - name: Set repo name to lowercase
-        run: echo "LOWER_REPO_NAME=$(echo ${{ github.event.repository.name }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+        run: |
+          echo "LOWER_REPO_NAME=$(echo ${{ github.event.repository.name }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+          # Registry names must be lowercase; a GitHub owner may not be.
+          echo "LOWER_OWNER=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Determine Docker Image Tags
         id: tag
@@ -598,7 +609,7 @@ jobs:
 
           # 2. GHCR always gets an immutable commit tag. Main/manual builds also
           # advance the delivery-channel tags; PR verification builds must not.
-          base="ghcr.io/${{ github.repository_owner }}/${{ env.LOWER_REPO_NAME }}"
+          base="ghcr.io/${{ env.LOWER_OWNER }}/${{ env.LOWER_REPO_NAME }}"
           tags=(-t "$base:${{ env.COMMIT_TAG }}")
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             tags+=(-t "$base:${{ env.FLOAT_TAG }}" -t "$base:${{ env.UNIQUE_TAG }}")
@@ -670,7 +681,7 @@ jobs:
           IMAGE_SOURCE: ${{ needs.classify.outputs.image_source }}
           SUBJECT_SHA: ${{ github.sha }}
         run: |
-          base="ghcr.io/${{ github.repository_owner }}/$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')"
+          base="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
           bash scripts/alias-e2e-image.sh \
             "$base" "$IMAGE_SOURCE" "$SUBJECT_SHA" 191 30 \
             "${{ github.repository }}" push "${{ github.api_url }}" \

@@ -36,9 +36,13 @@ ARG KEPUBIFY_RELEASE=v4.0.4
 # TARGETARCH, so it cannot build this image regardless of PBS_SOURCE.
 # See notes/PYTHON-BUILD-MIRROR.md.
 ARG PBS_SOURCE=upstream
+# Which GHCR repository holds the mirror. CI passes the building repository's
+# own ghcr.io/<owner>/pbs-cache so a fork mirrors into, and pulls from, its own
+# namespace instead of the private upstream package it cannot read.
+ARG PBS_MIRROR=ghcr.io/new-usemame/pbs-cache
 
-FROM ghcr.io/new-usemame/pbs-cache:cpython-${PYTHON_VERSION}-${PYTHON_BUILD_STANDALONE_RELEASE} AS pbs_ghcr
-FROM ghcr.io/new-usemame/pbs-cache:kepubify-${KEPUBIFY_RELEASE} AS kepubify_ghcr
+FROM ${PBS_MIRROR}:cpython-${PYTHON_VERSION}-${PYTHON_BUILD_STANDALONE_RELEASE} AS pbs_ghcr
+FROM ${PBS_MIRROR}:kepubify-${KEPUBIFY_RELEASE} AS kepubify_ghcr
 
 FROM ghcr.io/linuxserver/baseimage-ubuntu:noble AS pbs_upstream
 ARG PYTHON_VERSION

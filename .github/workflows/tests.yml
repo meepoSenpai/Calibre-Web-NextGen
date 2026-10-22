@@ -357,6 +357,10 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e '.[dev]'
 
+      - name: Resolve pbs-cache mirror
+        # Registry names must be lowercase; a GitHub owner may not be.
+        run: echo "PBS_MIRROR=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/pbs-cache" >> "$GITHUB_ENV"
+
       - name: Build Docker image
         uses: docker/build-push-action@v7
         with:
@@ -380,6 +384,7 @@ jobs:
           # `ghcr`. Pinned byte-for-byte by tests/unit/test_dockerfile_contributor_build.py.
           build-args: |
             PBS_SOURCE=${{ github.event.pull_request.head.repo.fork == true && 'upstream' || 'ghcr' }}
+            PBS_MIRROR=${{ env.PBS_MIRROR }}
 
       - name: Set test UID/GID
         run: |
@@ -600,6 +605,10 @@ jobs:
       # For backend/build PRs, changed_paths already made integration-tests build
       # this exact tree; reuse its GHA cache and load a full-stack image so e2e
       # cannot silently exercise main's Python code under the branch's UI.
+      - name: Resolve pbs-cache mirror
+        # Registry names must be lowercase; a GitHub owner may not be.
+        run: echo "PBS_MIRROR=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/pbs-cache" >> "$GITHUB_ENV"
+
       - name: Build full-stack PR image
         if: >-
           github.event_name == 'pull_request' &&
@@ -615,6 +624,7 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             PBS_SOURCE=${{ github.event.pull_request.head.repo.fork == true && 'upstream' || 'ghcr' }}
+            PBS_MIRROR=${{ env.PBS_MIRROR }}
 
       - name: Resolve image to test
         id: img
@@ -622,7 +632,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           SUBJECT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          image="ghcr.io/new-usemame/calibre-web-nextgen"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
           producer_args=()
           if [[ "${{ github.event_name }}" == "pull_request" \
                   && "${{ needs.changed_paths.outputs.build }}" == "true" \
