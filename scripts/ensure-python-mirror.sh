@@ -19,12 +19,18 @@
 #   automatically. No other manual step.
 #
 # AUTH: set GHCR_TOKEN to a token with write:packages (CI passes secrets.GH_PAT).
+#
+# OWNER: the mirror lives in the namespace of the repository running the build
+# (GITHUB_REPOSITORY_OWNER in Actions), so a fork maintains its own copy. Image
+# builds must pass the same ghcr.io/<owner>/pbs-cache as the PBS_MIRROR arg.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOCKERFILE="${REPO_ROOT}/Dockerfile"
-GHCR_USER="${GHCR_USER:-new-usemame}"
-MIRROR_PATH="new-usemame/pbs-cache"            # ghcr.io/<this>
+OWNER="${GITHUB_REPOSITORY_OWNER:-new-usemame}"
+GHCR_USER="${GHCR_USER:-${OWNER}}"
+# Registry repository names must be lowercase; GitHub owners need not be.
+MIRROR_PATH="$(printf '%s' "${OWNER}" | tr '[:upper:]' '[:lower:]')/pbs-cache"   # ghcr.io/<this>
 MIRROR_REPO="ghcr.io/${MIRROR_PATH}"
 
 read_arg() { grep -E "^ARG ${1}=" "$DOCKERFILE" | head -1 | cut -d= -f2; }

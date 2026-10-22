@@ -373,17 +373,22 @@ def test_default_build_reaches_no_private_mirror(dockerfile_text: str) -> None:
     """No stage reachable under the default (`upstream`) may reference the
     private package. Only the explicitly-opt-in `*_ghcr` stages may."""
     bodies = _stage_bodies(dockerfile_text)
+
+    # The mirror is addressed through the PBS_MIRROR arg (so a fork can point at
+    # its own namespace), or by its literal upstream name.
+    def references_mirror(body: str) -> bool:
+        return PRIVATE_MIRROR in body or "${PBS_MIRROR}" in body
+
     for stage in ("pbs_upstream", "kepubify_upstream"):
         assert stage in bodies, f"Missing credential-free `{stage}` stage"
-        assert PRIVATE_MIRROR not in bodies[stage], (
+        assert not references_mirror(bodies[stage]), (
             f"Stage {stage} references the private {PRIVATE_MIRROR}; it is the "
             f"fallback a contributor gets and must need no credentials."
         )
 
-    referencing = {name for name, body in bodies.items() if PRIVATE_MIRROR in body}
-    assert referencing <= {"pbs_ghcr", "kepubify_ghcr"}, (
-        f"Only the opt-in *_ghcr stages may reference {PRIVATE_MIRROR}; found it "
-        f"in {sorted(referencing - {'pbs_ghcr', 'kepubify_ghcr'})}."
+    referencing = {name for name, body in bodies.items() if references_mirror(body)}
+    assert referencing == {"pbs_ghcr", "kepubify_ghcr"}, (
+        f"Expected exactly the opt-in *_ghcr stages to use the mirror; found {sorted(referencing)}."
     )
 
 
@@ -537,6 +542,29 @@ def test_every_ci_image_build_selects_a_pbs_source_explicitly() -> None:
         f"Unapproved PBS_SOURCE selection: {offenders}. A build with no "
         f"PBS_SOURCE silently falls back to the flaky release CDN; a build with "
         f"an ad-hoc conditional is how the fork/non-fork split gets it wrong."
+    )
+
+
+def test_every_ci_image_build_uses_its_own_owners_mirror() -> None:
+    """Every CI image build passes a `PBS_MIRROR` it can actually read.
+
+    The Dockerfile defaults the mirror to the upstream owner's private package,
+    which a fork's token cannot pull. CI must therefore point each build at the
+    building repository's own ghcr.io/<owner>/pbs-cache, which
+    scripts/ensure-python-mirror.sh fills from GITHUB_REPOSITORY_OWNER. A
+    hardcoded owner here would publish fine upstream and fail every fork build.
+    """
+    offenders: list[str] = []
+    for workflow, job, step in _image_build_steps():
+        build_args = str((step.get("with") or {}).get("build-args", ""))
+        mirrors = [line.strip() for line in build_args.splitlines()
+                   if line.strip().startswith("PBS_MIRROR=")]
+        if len(mirrors) != 1:
+            offenders.append(f"{workflow}:{job}: expected one PBS_MIRROR= line, found {len(mirrors)}")
+        elif "${{" not in mirrors[0] or "new-usemame" in mirrors[0]:
+            offenders.append(f"{workflow}:{job}: {mirrors[0]!r} is not derived from the repository")
+    assert not offenders, (
+        f"CI image builds must pull the mirror from their own namespace: {offenders}"
     )
 
 
